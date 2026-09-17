@@ -73,7 +73,7 @@ jobs:
 # --- Deploy SNR from quay.io ---
     - name: Deploy SNR via OLM bundle
       run: |
-        kubectl create ns ${DEPLOY_SNR_NAMESPACE}
+        kubectl create ns ${DEPLOY_SNR_NAMESPACE} || true
         kubectl label --overwrite ns ${DEPLOY_SNR_NAMESPACE} \
           pod-security.kubernetes.io/enforce=privileged \
           pod-security.kubernetes.io/audit=privileged \
@@ -105,7 +105,7 @@ jobs:
 
     - name: Deploy NHC via OLM bundle
       run: |
-        kubectl create ns ${DEPLOY_NHC_NAMESPACE}
+        kubectl create ns ${DEPLOY_NHC_NAMESPACE} || true
         kubectl label --overwrite ns ${DEPLOY_NHC_NAMESPACE} \
           pod-security.kubernetes.io/enforce=privileged \
           pod-security.kubernetes.io/audit=privileged \
