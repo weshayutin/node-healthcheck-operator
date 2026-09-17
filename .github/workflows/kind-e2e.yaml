@@ -14,12 +14,6 @@ on:
         default: false
 
 jobs:
-  podman-test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check Podman Version
-        run: podman --version
-
   e2e-kind:
     #runs-on: ubuntu-24.04
     #runs-on: kind-e2e
@@ -50,6 +44,9 @@ jobs:
       
 
     steps:
+    - name: Check Podman Version
+      run: podman --version
+
     - name: Checkout NHC
       uses: actions/checkout@v6
       with:
@@ -77,14 +74,18 @@ jobs:
     - name: Install operator-sdk
       run: |
         make operator-sdk
-        cp ./bin/operator-sdk /usr/local/bin/
+        sudo cp ./bin/operator-sdk /usr/local/bin/
 
     - name: Create Kind cluster with registry, OLM, and cert-manager
       run: |
         # Run with sudo to use rootful podman (no cpuset delegation needed)
         sudo -E make dev-setup
-        # Get kubeconfig from rootful cluster
-        sudo kind get kubeconfig --name ${MEDIK8S_CLUSTER_NAME} > ~/.kube/config
+
+        # Export kubeconfig from rootful cluster
+        mkdir -p ~/.kube
+        sudo kind export kubeconfig --name ${MEDIK8S_CLUSTER_NAME} --kubeconfig /tmp/kubeconfig
+        sudo cp /tmp/kubeconfig ~/.kube/config
+        sudo chown $(id -u):$(id -g) ~/.kube/config
         chmod 600 ~/.kube/config
 
     - name: Cluster info
@@ -120,12 +121,13 @@ jobs:
     - name: Build and push NHC
       run: |
         export NHC_SKIP_TEST=true
-        make container-build-k8s
+        # Build with sudo so images are in rootful podman storage
+        sudo -E make container-build-k8s
 
         NHC_IMG=${IMAGE_REGISTRY}/node-healthcheck-operator:latest
         NHC_BUNDLE=${IMAGE_REGISTRY}/node-healthcheck-operator-bundle:latest
 
-        # Push to rootful podman registry with sudo
+        # Push from rootful podman storage
         sudo podman push --tls-verify=false ${NHC_IMG}
         sudo podman push --tls-verify=false ${NHC_BUNDLE}
 
