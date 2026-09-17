@@ -11,7 +11,7 @@ jobs:
   e2e-kind:
     #runs-on: ubuntu-24.04
     #runs-on: kind-e2e
-    runs-on: ubuntu-26.04-arm
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
