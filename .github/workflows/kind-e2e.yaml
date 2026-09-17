@@ -28,7 +28,7 @@ jobs:
       OPM_RENDER_FLAGS: --skip-tls-verify
 
       # Deployment
-      DEPLOY_SNR_NAMESPACE: snr-system
+      DEPLOY_SNR_NAMESPACE: k8s-test
       DEPLOY_NHC_NAMESPACE: k8s-test
 
       # Enable GitHub Actions step debug logging
