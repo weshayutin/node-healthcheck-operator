@@ -55,11 +55,11 @@ jobs:
         connect-timeout-seconds: 60
 
     - name: Check tmate connectivity
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
-    continue-on-error: false
-    run: |
-      getent hosts ssh.tmate.io
-      timeout 10 bash -c ':</dev/tcp/ssh.tmate.io/22'
+      if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
+      continue-on-error: false
+      run: |
+        getent hosts ssh.tmate.io
+        timeout 10 bash -c ':</dev/tcp/ssh.tmate.io/22'
 
     - name: Checkout NHC
       uses: actions/checkout@v6
