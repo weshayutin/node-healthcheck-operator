@@ -29,11 +29,26 @@ fi
 
 # --- Configuration (mirrors GitHub Actions env) ---
 export MEDIK8S_CLUSTER_NAME="${MEDIK8S_CLUSTER_NAME:-medik8s-ci}"
+
+# Auto-detect or configure container tool
+# Local uses rootless podman (CI uses rootful with sudo)
 if [ -z "${CONTAINER_TOOL:-}" ]; then
     if command -v podman &>/dev/null; then
         export CONTAINER_TOOL=podman
+        echo "✓ Using rootless podman"
+
+        # Check if cpuset is delegated for rootless podman
+        if [ "$(id -u)" != "0" ]; then
+            CGROUP_SUBTREE="/sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/cgroup.subtree_control"
+            if [ -f "${CGROUP_SUBTREE}" ] && ! grep -q 'cpuset' "${CGROUP_SUBTREE}" 2>/dev/null; then
+                echo "⚠ Warning: cpuset cgroup not delegated"
+                echo "  Kind worker nodes may fail to start"
+                echo "  See setup.sh error message for fix if needed"
+            fi
+        fi
     elif command -v docker &>/dev/null; then
         export CONTAINER_TOOL=docker
+        echo "✓ Using docker (podman not found)"
     else
         echo "Error: neither podman nor docker found in PATH"
         exit 1
@@ -208,7 +223,7 @@ if [ "${SKIP_BUILD}" = false ]; then
     export NHC_SKIP_TEST=true
     make container-build-k8s
 
-    # NHC Makefile hardcodes podman for builds
+    # Push to local registry (rootless podman)
     podman push --tls-verify=false ${NHC_IMG}
     podman push --tls-verify=false ${NHC_BUNDLE}
 

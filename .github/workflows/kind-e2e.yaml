@@ -14,6 +14,12 @@ on:
         default: false
 
 jobs:
+  podman-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Podman Version
+        run: podman --version
+
   e2e-kind:
     #runs-on: ubuntu-24.04
     #runs-on: kind-e2e
@@ -55,30 +61,13 @@ jobs:
       with:
         go-version-file: go.mod
 
-    - name: Enable podman Docker-compatible socket
+    - name: Configure container runtime
       run: |
-        # Enable podman socket so Kind can use it via DOCKER_HOST
-        # This avoids cpuset cgroup delegation issues with rootless podman
-        systemctl --user enable --now podman.socket
-
-        # Set DOCKER_HOST for this and all subsequent steps
-        PODMAN_SOCK="unix:///run/user/$(id -u)/podman/podman.sock"
-        echo "DOCKER_HOST=${PODMAN_SOCK}" >> $GITHUB_ENV
-
-        # Set CONTAINER_TOOL=docker so Kind uses the default provider (talks to podman via socket)
-        # and dev/setup.sh skips the cpuset delegation check
-        echo "CONTAINER_TOOL=docker" >> $GITHUB_ENV
-
-        # Verify socket is available
-        sleep 2
-        if [ -S "/run/user/$(id -u)/podman/podman.sock" ]; then
-          echo "✓ Podman socket is ready at ${PODMAN_SOCK}"
-          echo "✓ CONTAINER_TOOL=docker (Kind uses podman via Docker API socket)"
-        else
-          echo "✗ ERROR: Podman socket not found"
-          systemctl --user status podman.socket
-          exit 1
-        fi
+        # Use rootful podman (sudo) - no cpuset delegation issues
+        # Both podman and sudo are available on GitHub Actions runners
+        echo "CONTAINER_TOOL=podman" >> $GITHUB_ENV
+        echo "USE_SUDO=true" >> $GITHUB_ENV
+        echo "✓ Using rootful podman (sudo podman)"
 
     - name: Clone medik8s/tools
       run: |
@@ -91,7 +80,12 @@ jobs:
         cp ./bin/operator-sdk /usr/local/bin/
 
     - name: Create Kind cluster with registry, OLM, and cert-manager
-      run: make dev-setup
+      run: |
+        # Run with sudo to use rootful podman (no cpuset delegation needed)
+        sudo -E make dev-setup
+        # Get kubeconfig from rootful cluster
+        sudo kind get kubeconfig --name ${MEDIK8S_CLUSTER_NAME} > ~/.kube/config
+        chmod 600 ~/.kube/config
 
     - name: Cluster info
       run: make dev-cluster-info
@@ -131,10 +125,9 @@ jobs:
         NHC_IMG=${IMAGE_REGISTRY}/node-healthcheck-operator:latest
         NHC_BUNDLE=${IMAGE_REGISTRY}/node-healthcheck-operator-bundle:latest
 
-        # Makefile builds with podman. Push to local registry.
-        # Both podman and docker CLI work here because DOCKER_HOST points to podman socket.
-        podman push --tls-verify=false ${NHC_IMG}
-        podman push --tls-verify=false ${NHC_BUNDLE}
+        # Push to rootful podman registry with sudo
+        sudo podman push --tls-verify=false ${NHC_IMG}
+        sudo podman push --tls-verify=false ${NHC_BUNDLE}
 
     - name: Deploy NHC via OLM bundle
       run: |
