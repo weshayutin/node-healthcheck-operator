@@ -25,7 +25,8 @@ jobs:
       # Shared dev environment
       TOOLS_DIR: ${{ github.workspace }}/.tools
       MEDIK8S_CLUSTER_NAME: medik8s-ci
-      CONTAINER_TOOL: podman
+      # CONTAINER_TOOL is set in the "Enable podman socket" step below
+      # (docker when using podman socket, podman for direct usage)
 
       # Registry (created by dev-setup)
       MEDIK8S_REGISTRY_NAME: kind-registry
@@ -64,10 +65,15 @@ jobs:
         PODMAN_SOCK="unix:///run/user/$(id -u)/podman/podman.sock"
         echo "DOCKER_HOST=${PODMAN_SOCK}" >> $GITHUB_ENV
 
+        # Set CONTAINER_TOOL=docker so Kind uses the default provider (talks to podman via socket)
+        # and dev/setup.sh skips the cpuset delegation check
+        echo "CONTAINER_TOOL=docker" >> $GITHUB_ENV
+
         # Verify socket is available
         sleep 2
         if [ -S "/run/user/$(id -u)/podman/podman.sock" ]; then
           echo "✓ Podman socket is ready at ${PODMAN_SOCK}"
+          echo "✓ CONTAINER_TOOL=docker (Kind uses podman via Docker API socket)"
         else
           echo "✗ ERROR: Podman socket not found"
           systemctl --user status podman.socket
@@ -125,7 +131,8 @@ jobs:
         NHC_IMG=${IMAGE_REGISTRY}/node-healthcheck-operator:latest
         NHC_BUNDLE=${IMAGE_REGISTRY}/node-healthcheck-operator-bundle:latest
 
-        # Push to local registry (Kind uses podman via DOCKER_HOST socket)
+        # Makefile builds with podman. Push to local registry.
+        # Both podman and docker CLI work here because DOCKER_HOST points to podman socket.
         podman push --tls-verify=false ${NHC_IMG}
         podman push --tls-verify=false ${NHC_BUNDLE}
 
