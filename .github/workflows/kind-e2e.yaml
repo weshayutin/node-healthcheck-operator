@@ -5,14 +5,20 @@ on:
     branches: [main*, wes-*, release-*]
   pull_request:
     branches: [main*, release-*]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: Enable SSH debugging with tmate
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   e2e-kind:
     #runs-on: ubuntu-24.04
     #runs-on: kind-e2e
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
     permissions:
       contents: read
     env:
@@ -225,6 +231,14 @@ jobs:
         kubectl get mutatingwebhookconfigurations -o name 2>/dev/null | grep -i 'node\|nhc\|snr\|remediation' || echo "none"
 
     # --- Run tests ---
+    - name: Start SSH debug session
+      if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
+      uses: mxschmitt/action-tmate@v3
+      timeout-minutes: 10
+      with:
+        detached: true
+        limit-access-to-actor: true
+
     - name: Run e2e tests
       run: |
         # The reboot watcher simulates node reboot on Kind by restarting the
