@@ -11,7 +11,7 @@ on:
         description: Enable SSH debugging with tmate
         required: false
         type: boolean
-        default: true
+        default: false
 
 jobs:
   e2e-kind:
@@ -25,7 +25,8 @@ jobs:
       # Shared dev environment
       TOOLS_DIR: ${{ github.workspace }}/.tools
       MEDIK8S_CLUSTER_NAME: medik8s-ci
-      CONTAINER_TOOL: docker
+      #CONTAINER_TOOL: docker
+      CONTAINER_TOOL: podman
 
       # Registry (created by dev-setup)
       MEDIK8S_REGISTRY_NAME: kind-registry
@@ -45,12 +46,20 @@ jobs:
     steps:
     - name: Start SSH debug session
       if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
+      continue-on-error: true
       uses: mxschmitt/action-tmate@v3
-      timeout-minutes: 15
+      timeout-minutes: 3
       with:
         detached: true
         limit-access-to-actor: true
-        connect-timeout-seconds: 600
+        connect-timeout-seconds: 60
+
+    - name: Check tmate connectivity
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
+    continue-on-error: false
+    run: |
+      getent hosts ssh.tmate.io
+      timeout 10 bash -c ':</dev/tcp/ssh.tmate.io/22'
 
     - name: Checkout NHC
       uses: actions/checkout@v6
