@@ -55,6 +55,43 @@ jobs:
       with:
         go-version-file: go.mod
 
+    - name: Configure cgroup delegation for rootless podman
+      run: |
+        # Rootless podman needs cpuset delegated for Kind worker nodes to start
+        echo "=== Current cgroup delegation status ==="
+        CGROUP_SUBTREE="/sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/cgroup.subtree_control"
+        if [ -f "${CGROUP_SUBTREE}" ]; then
+          echo "Current: $(cat ${CGROUP_SUBTREE})"
+        fi
+
+        # Create systemd override
+        sudo mkdir -p /etc/systemd/system/user@.service.d
+        sudo tee /etc/systemd/system/user@.service.d/delegate.conf << 'EOF'
+        [Service]
+        Delegate=cpu cpuset io memory pids
+        EOF
+        sudo systemctl daemon-reload
+
+        # Stop user services, then restart user@.service
+        systemctl --user stop podman.socket podman.service 2>/dev/null || true
+        sudo systemctl restart "user@$(id -u).service"
+        sleep 3
+
+        # Verify delegation after restart
+        echo "=== After delegation config ==="
+        if [ -f "${CGROUP_SUBTREE}" ]; then
+          echo "Delegated: $(cat ${CGROUP_SUBTREE})"
+          if grep -q 'cpuset' "${CGROUP_SUBTREE}"; then
+            echo "✓ cpuset controller is delegated"
+          else
+            echo "✗ ERROR: cpuset controller NOT delegated"
+            exit 1
+          fi
+        else
+          echo "✗ ERROR: cgroup.subtree_control not found"
+          exit 1
+        fi
+
     - name: Clone medik8s/tools
       run: |
         git clone --depth 1 --branch testing-hang https://github.com/mpryc/medik8s-tools.git $TOOLS_DIR
