@@ -11,7 +11,7 @@ on:
         description: Enable SSH debugging with tmate
         required: false
         type: boolean
-        default: false
+        default: true
 
 jobs:
   e2e-kind:
@@ -46,10 +46,11 @@ jobs:
     - name: Start SSH debug session
       if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
       uses: mxschmitt/action-tmate@v3
-      timeout-minutes: 10
+      timeout-minutes: 15
       with:
         detached: true
         limit-access-to-actor: true
+        connect-timeout-seconds: 600
 
     - name: Checkout NHC
       uses: actions/checkout@v6
