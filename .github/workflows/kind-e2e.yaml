@@ -43,6 +43,14 @@ jobs:
       
 
     steps:
+    - name: Start SSH debug session
+      if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
+      uses: mxschmitt/action-tmate@v3
+      timeout-minutes: 10
+      with:
+        detached: true
+        limit-access-to-actor: true
+
     - name: Checkout NHC
       uses: actions/checkout@v6
       with:
@@ -231,14 +239,6 @@ jobs:
         kubectl get mutatingwebhookconfigurations -o name 2>/dev/null | grep -i 'node\|nhc\|snr\|remediation' || echo "none"
 
     # --- Run tests ---
-    - name: Start SSH debug session
-      if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
-      uses: mxschmitt/action-tmate@v3
-      timeout-minutes: 10
-      with:
-        detached: true
-        limit-access-to-actor: true
-
     - name: Run e2e tests
       run: |
         # The reboot watcher simulates node reboot on Kind by restarting the
