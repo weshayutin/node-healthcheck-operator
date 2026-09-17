@@ -25,7 +25,6 @@ jobs:
       # Shared dev environment
       TOOLS_DIR: ${{ github.workspace }}/.tools
       MEDIK8S_CLUSTER_NAME: medik8s-ci
-      #CONTAINER_TOOL: docker
       CONTAINER_TOOL: podman
 
       # Registry (created by dev-setup)
@@ -55,40 +54,23 @@ jobs:
       with:
         go-version-file: go.mod
 
-    - name: Configure cgroup delegation for rootless podman
+    - name: Enable podman Docker-compatible socket
       run: |
-        # Rootless podman needs cpuset delegated for Kind worker nodes to start
-        echo "=== Current cgroup delegation status ==="
-        CGROUP_SUBTREE="/sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/cgroup.subtree_control"
-        if [ -f "${CGROUP_SUBTREE}" ]; then
-          echo "Current: $(cat ${CGROUP_SUBTREE})"
-        fi
+        # Enable podman socket so Kind can use it via DOCKER_HOST
+        # This avoids cpuset cgroup delegation issues with rootless podman
+        systemctl --user enable --now podman.socket
 
-        # Create systemd override
-        sudo mkdir -p /etc/systemd/system/user@.service.d
-        sudo tee /etc/systemd/system/user@.service.d/delegate.conf << 'EOF'
-        [Service]
-        Delegate=cpu cpuset io memory pids
-        EOF
-        sudo systemctl daemon-reload
+        # Set DOCKER_HOST for this and all subsequent steps
+        PODMAN_SOCK="unix:///run/user/$(id -u)/podman/podman.sock"
+        echo "DOCKER_HOST=${PODMAN_SOCK}" >> $GITHUB_ENV
 
-        # Stop user services, then restart user@.service
-        systemctl --user stop podman.socket podman.service 2>/dev/null || true
-        sudo systemctl restart "user@$(id -u).service"
-        sleep 3
-
-        # Verify delegation after restart
-        echo "=== After delegation config ==="
-        if [ -f "${CGROUP_SUBTREE}" ]; then
-          echo "Delegated: $(cat ${CGROUP_SUBTREE})"
-          if grep -q 'cpuset' "${CGROUP_SUBTREE}"; then
-            echo "✓ cpuset controller is delegated"
-          else
-            echo "✗ ERROR: cpuset controller NOT delegated"
-            exit 1
-          fi
+        # Verify socket is available
+        sleep 2
+        if [ -S "/run/user/$(id -u)/podman/podman.sock" ]; then
+          echo "✓ Podman socket is ready at ${PODMAN_SOCK}"
         else
-          echo "✗ ERROR: cgroup.subtree_control not found"
+          echo "✗ ERROR: Podman socket not found"
+          systemctl --user status podman.socket
           exit 1
         fi
 
@@ -143,7 +125,7 @@ jobs:
         NHC_IMG=${IMAGE_REGISTRY}/node-healthcheck-operator:latest
         NHC_BUNDLE=${IMAGE_REGISTRY}/node-healthcheck-operator-bundle:latest
 
-        # NHC Makefile hardcodes podman for builds, so push with podman too
+        # Push to local registry (Kind uses podman via DOCKER_HOST socket)
         podman push --tls-verify=false ${NHC_IMG}
         podman push --tls-verify=false ${NHC_BUNDLE}
 
