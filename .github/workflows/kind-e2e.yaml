@@ -82,8 +82,9 @@ jobs:
         sudo -E make dev-setup
 
         # Export kubeconfig from rootful cluster
+        # KIND_EXPERIMENTAL_PROVIDER must be set for kind to work with podman
         mkdir -p ~/.kube
-        sudo kind export kubeconfig --name ${MEDIK8S_CLUSTER_NAME} --kubeconfig /tmp/kubeconfig
+        sudo KIND_EXPERIMENTAL_PROVIDER=podman kind export kubeconfig --name ${MEDIK8S_CLUSTER_NAME} --kubeconfig /tmp/kubeconfig
         sudo cp /tmp/kubeconfig ~/.kube/config
         sudo chown $(id -u):$(id -g) ~/.kube/config
         chmod 600 ~/.kube/config
