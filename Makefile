@@ -314,7 +314,7 @@ TMP_DIR=$$(mktemp -d) ;\
 cd $$TMP_DIR ;\
 go mod init tmp ;\
 echo "Downloading $(2)" ;\
-GOTOOLCHAIN=auto GOBIN=$(PROJECT_DIR)/bin GOFLAGS='' go install $(2) ;\
+GOWORK=off GOTOOLCHAIN=auto GOBIN=$(PROJECT_DIR)/bin GOFLAGS='' go install $(2) ;\
 rm -rf $$TMP_DIR ;\
 }
 endef
