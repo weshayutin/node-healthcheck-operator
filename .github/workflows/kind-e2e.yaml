@@ -225,23 +225,6 @@ jobs:
       if: ${{ always() }}
       run: make dev-describe
 
-    # --- SSH debugging (after setup) ---
-    - name: Check tmate connectivity
-      if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
-      continue-on-error: true
-      run: |
-        echo "Checking connectivity to ssh.tmate.io..."
-        getent hosts ssh.tmate.io || echo "DNS lookup failed"
-        timeout 10 bash -c ':</dev/tcp/ssh.tmate.io/22' && echo "TCP connection successful" || echo "TCP connection failed"
-
-    - name: Start SSH debug session (post-setup)
-      if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
-      uses: mxschmitt/action-tmate@v3
-      timeout-minutes: 60
-      with:
-        detached: true
-        limit-access-to-actor: true
-        connect-timeout-seconds: 180
 
     # --- Pre-flight checks ---
     - name: Verify NHC readiness
@@ -320,3 +303,4 @@ jobs:
       timeout-minutes: 60
       with:
         limit-access-to-actor: true
+        install-dependencies: false
