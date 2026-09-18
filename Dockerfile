@@ -7,9 +7,8 @@ WORKDIR /workspace
 
 COPY go.mod go.sum ./
 
-# Set GOTOOLCHAIN to auto to allow Go to download newer versions
-# Set to local to avoid downloading newer versions of Go
-ENV GOTOOLCHAIN=auto
+# Set GOTOOLCHAIN to use Go 1.26.5 explicitly
+ENV GOTOOLCHAIN=go1.26.5
 
 # Copy the go source
 COPY vendor/ vendor/
