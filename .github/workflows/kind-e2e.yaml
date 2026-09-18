@@ -297,6 +297,15 @@ jobs:
         echo ""
         make dev-ci-debug
 
+    - name: Install tmate manually
+      if: ${{ failure() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
+      run: |
+        cd /tmp
+        wget https://github.com/tmate-io/tmate/releases/download/2.4.0/tmate-2.4.0-static-linux-amd64.tar.xz
+        tar xf tmate-2.4.0-static-linux-amd64.tar.xz
+        sudo mv tmate-2.4.0-static-linux-amd64/tmate /usr/local/bin/
+        tmate -V
+
     - name: SSH debug session on failure
       if: ${{ failure() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
       uses: mxschmitt/action-tmate@v3
