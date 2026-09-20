@@ -17,7 +17,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NHC_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-TOOLS_DIR="${NHC_DIR}/../../shared/tools"
+TOOLS_DIR="${TOOLS_DIR:-${NHC_DIR}/../../shared/tools}"
 
 # --- Configuration (mirrors GitHub Actions env) ---
 export MEDIK8S_CLUSTER_NAME="${MEDIK8S_CLUSTER_NAME:-medik8s-ci}"
@@ -228,28 +228,26 @@ if [ "${SKIP_BUILD}" = false ]; then
         --timeout 5m \
         quay.io/medik8s/self-node-remediation-operator-bundle:latest
 
-    step "Disabling SNR software reboot for Kind"
+    step "Waiting for SNR agent to become ready on Kind"
+    # Kind's /dev/watchdog is not usable from rootless container runtimes.
+    # SNR must keep its software-reboot fallback enabled in this environment;
+    # setting isSoftwareRebootEnabled=false makes watchdog startup failure
+    # fatal and leaves every agent in CrashLoopBackOff.
     kubectl -n "${DEPLOY_SNR_NAMESPACE}" wait --for=create \
         selfnoderemediationconfig/self-node-remediation-config --timeout=120s
-    kubectl -n "${DEPLOY_SNR_NAMESPACE}" patch selfnoderemediationconfig \
-        self-node-remediation-config --type=merge \
-        -p '{"spec":{"isSoftwareRebootEnabled":false}}'
     kubectl -n "${DEPLOY_SNR_NAMESPACE}" wait --for=create \
-        daemonset/self-node-remediation-ds --timeout=120s
-    kubectl -n "${DEPLOY_SNR_NAMESPACE}" wait \
-        --for=jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="IS_SOFTWARE_REBOOT_ENABLED")].value}'=false \
         daemonset/self-node-remediation-ds --timeout=120s
     kubectl -n "${DEPLOY_SNR_NAMESPACE}" rollout status \
         daemonset/self-node-remediation-ds --timeout=120s
 
     step "Starting reboot watcher"
     cd "${NHC_DIR}"
-    make dev-reboot-watcher
+    MEDIK8S_REBOOT_DELAY=90 make dev-reboot-watcher
 
     step "Building and pushing NHC"
     cd "${NHC_DIR}"
     export NHC_SKIP_TEST=true
-    make container-build-k8s
+    IMG="${NHC_IMG}" BUNDLE_IMG="${NHC_BUNDLE}" make container-build-k8s
 
     # NHC Makefile hardcodes podman for builds, so push with podman too
     podman push --tls-verify=false "${NHC_IMG}"
